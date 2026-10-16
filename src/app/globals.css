@@ -411,6 +411,34 @@ nav a {
   font-weight: 400;
   margin-top: 3px;
 }
+.download-actions {
+  display: flex;
+  gap: 12px;
+}
+.download-actions > .download-button {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+.backup-download-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 55px;
+  padding: 0 17px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--raised);
+  color: var(--text);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.backup-download-button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--tint);
+}
 .download-button {
   display: flex;
   align-items: center;
@@ -969,6 +997,16 @@ details[open] > summary > svg {
   gap: 3px;
 }
 @media (max-width: 1000px) {
+  .download-actions {
+    flex-wrap: wrap;
+  }
+  .download-actions > .download-button {
+    flex-basis: 100%;
+  }
+  .backup-download-button {
+    width: 100%;
+    min-height: 44px;
+  }
   .header-inner {
     padding: 0 30px;
   }

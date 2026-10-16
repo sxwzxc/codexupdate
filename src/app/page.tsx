@@ -172,20 +172,31 @@ export default async function Home() {
                   </strong>
                 </div>
               </div>
-              {r ? (
-                <a className="download-button" href="/download/windows-x64">
-                  <ArrowDownToLine size={21} aria-hidden />
-                  <span>下载 Windows 安装包</span>
-                  <span className="button-extension">.msix</span>
-                </a>
-              ) : (
-                <div
-                  className="download-button unavailable"
-                  aria-disabled="true"
+              <div className="download-actions">
+                {r ? (
+                  <a className="download-button" href="/download/windows-x64">
+                    <ArrowDownToLine size={21} aria-hidden />
+                    <span>下载 Windows 安装包</span>
+                    <span className="button-extension">.msix</span>
+                  </a>
+                ) : (
+                  <div
+                    className="download-button unavailable"
+                    aria-disabled="true"
+                  >
+                    <Download size={21} aria-hidden /> 安装包准备中
+                  </div>
+                )}
+                <a
+                  className="backup-download-button"
+                  href="http://codexdown.sxwzxc.cn/"
+                  target="_blank"
+                  rel="noopener noreferrer"
                 >
-                  <Download size={21} aria-hidden /> 安装包准备中
-                </div>
-              )}
+                  备用下载
+                  <ArrowUpRight size={16} aria-hidden />
+                </a>
+              </div>
               <div className="download-secondary">
                 {r ? (
                   <>

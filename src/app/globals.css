@@ -470,6 +470,55 @@ nav a {
   color: var(--muted);
   line-height: 1.8;
 }
+.official-downloads {
+  border-top: 1px solid var(--border);
+  padding: 18px 0 20px;
+}
+.official-downloads h3 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+}
+.official-downloads > p {
+  color: var(--muted);
+  font-size: 11px;
+  margin: 7px 0 13px;
+}
+.official-download {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--code);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 11px 12px;
+}
+.official-download + .official-download {
+  margin-top: 9px;
+}
+.official-download > a {
+  min-width: 0;
+  flex: 1;
+}
+.official-download a > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  font-size: 12px;
+}
+.official-download code {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+  margin-top: 5px;
+}
+.official-download .copy-button {
+  min-height: 44px;
+}
 .download-note strong {
   font-weight: 500;
   color: var(--text);

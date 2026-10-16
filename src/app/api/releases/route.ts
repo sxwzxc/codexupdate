@@ -13,7 +13,12 @@ export async function GET() {
     {
       schemaVersion: 1,
       checkedAt: catalog.checkedAt,
-      release: catalog.release,
+      release: {
+        ...catalog.release,
+        url: "/download/windows-x64",
+        license: { ...catalog.release.license, url: "/download/license" },
+        checksumsUrl: "/download/checksums",
+      },
       notes: catalog.notes,
       history: catalog.history,
       status,

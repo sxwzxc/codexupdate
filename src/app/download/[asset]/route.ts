@@ -4,7 +4,7 @@ export async function GET(
   context: { params: Promise<{ asset: string }> },
 ) {
   const { asset } = await context.params;
-  if (!["windows-x64", "license"].includes(asset))
+  if (!["windows-x64", "license", "checksums"].includes(asset))
     return new Response("Not found", { status: 404 });
   const catalog = await getCatalog();
   if (!catalog)
@@ -16,7 +16,11 @@ export async function GET(
     status: 302,
     headers: {
       Location: safeDownloadUrl(
-        asset === "license" ? catalog.release.license.url : catalog.release.url,
+        asset === "license"
+          ? catalog.release.license.url
+          : asset === "checksums"
+            ? catalog.release.checksumsUrl
+            : catalog.release.url,
       ),
       "Cache-Control": "no-store",
     },

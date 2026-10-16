@@ -1,12 +1,13 @@
 # Codex 下载站
 
-Windows x64 官方 MSIX 的个人镜像站。正式页面：https://codex.sxwzxc.cn ，文件镜像：https://codex.shenxw.cn 。
+Windows x64 官方 MSIX 的独立镜像站。正式页面：https://codex.sxwzxc.cn ，文件镜像：https://codex.shenxw.cn 。
 
 ## 结构
 
 - Next.js 15 + TypeScript：下载页、中文安装指南、原文更新日志、主题切换。
 - `GET /api/releases`：读取 FTP 网站公开的版本清单，只返回公开元数据。
-- `/download/windows-x64`、`/download/license`：302 到镜像不可变文件地址，不代理大文件。
+- `/download/windows-x64`、`/download/license`、`/download/checksums`：302 到镜像不可变文件地址，不代理大文件。页面和公开版本接口使用站内路径，不展示镜像域名或维护者署名。
+- 下载区另外列出官方 MSIX 与许可证原始地址，可直接打开或复制，镜像暂不可用时仍可使用。
 - `scripts/sync.mjs`：Windows 上校验 MSIX 数字签名和包身份，上传 FTP，HTTPS 全量核对哈希，再切换清单。
 - GitHub Actions：每天 01:17 UTC（北京时间 09:17），以及手动触发。
 

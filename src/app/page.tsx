@@ -3,7 +3,6 @@ import {
   ArrowDownToLine,
   ArrowUpRight,
   ChevronRight,
-  Code2,
   Download,
   FileCheck2,
   FileKey2,
@@ -18,7 +17,16 @@ import { CopyButton, ThemeToggle } from "@/components/controls";
 import { getCatalog, getSyncStatus } from "@/lib/catalog";
 export const revalidate = 300;
 const official = "https://learn.chatgpt.com/docs/enterprise/windows-deployment";
-const source = "https://github.com/sxwzxc/codexupdate";
+const officialDownloads = [
+  {
+    label: "官方 MSIX 安装包 · Windows x64",
+    url: "https://persistent.oaistatic.com/codex-app-prod/ChatGPT-x64.msix",
+  },
+  {
+    label: "官方离线许可证",
+    url: "https://persistent.oaistatic.com/codex-app-prod/ChatGPT-License.xml",
+  },
+];
 const command = `# 将安装包和许可证放在同一文件夹\n# 以管理员身份打开 Windows PowerShell\nAdd-AppxProvisionedPackage -Online \`\n  -PackagePath .\\ChatGPT-x64.msix \`\n  -LicensePath .\\ChatGPT-License.xml \`\n  -Regions all`;
 const date = (v?: string | null) =>
   v
@@ -83,16 +91,6 @@ export default async function Home() {
             <a href="#install">安装指南</a>
           </nav>
           <div className="header-actions">
-            <a
-              href={source}
-              target="_blank"
-              rel="noreferrer"
-              className="source-link"
-            >
-              <Code2 size={17} aria-hidden />
-              <span>开源项目</span>
-              <ArrowUpRight size={14} aria-hidden />
-            </a>
             <ThemeToggle />
           </div>
         </div>
@@ -195,7 +193,7 @@ export default async function Home() {
                       下载离线许可证
                       <ArrowDown size={13} aria-hidden />
                     </a>
-                    <a href={r.checksumsUrl}>
+                    <a href="/download/checksums">
                       <FileCheck2 size={16} aria-hidden />
                       SHA-256 校验文件
                       <ArrowDown size={13} aria-hidden />
@@ -205,6 +203,30 @@ export default async function Home() {
                   <p>首次同步完成后，将提供经过校验的下载地址。</p>
                 )}
               </div>
+              <section
+                className="official-downloads"
+                aria-labelledby="official-downloads-title"
+              >
+                <h3 id="official-downloads-title">
+                  <Globe2 size={16} aria-hidden />
+                  官方直接下载
+                </h3>
+                <p>
+                  如果可以访问官方网络，可直接使用以下原始地址。官方版本可能先于镜像更新。
+                </p>
+                {officialDownloads.map(({ label, url }) => (
+                  <div className="official-download" key={url}>
+                    <a href={url} target="_blank" rel="noopener noreferrer">
+                      <span>
+                        {label}
+                        <ArrowUpRight size={14} aria-hidden />
+                      </span>
+                      <code>{url}</code>
+                    </a>
+                    <CopyButton text={url} label="复制地址" />
+                  </div>
+                ))}
+              </section>
               <div className="download-note">
                 <span className="note-icon">i</span>
                 <span>
@@ -223,7 +245,7 @@ export default async function Home() {
                     : "仅发布验证通过的官方文件"}
                 </span>
                 <a href={official} target="_blank" rel="noreferrer">
-                  官方来源
+                  官方安装说明
                   <ArrowUpRight size={13} aria-hidden />
                 </a>
               </div>
@@ -353,7 +375,7 @@ export default async function Home() {
                 </div>
                 <div>
                   <dt>文件下载节点</dt>
-                  <dd>codex.shenxw.cn</dd>
+                  <dd>独立镜像节点</dd>
                 </div>
               </dl>
               {(stale || failed) && r && (
@@ -361,15 +383,6 @@ export default async function Home() {
                   同步需要再次检查，已验证的安装包仍可下载。
                 </p>
               )}
-              <a
-                className="text-link"
-                href={`${source}/actions/workflows/sync.yml`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                查看自动同步记录
-                <ArrowUpRight size={14} aria-hidden />
-              </a>
             </section>
             <section
               id="updates"
@@ -461,12 +474,10 @@ export default async function Home() {
           <HardDrive size={23} aria-hidden />
           <div>
             <h2>网络有边界，创造不必等待。</h2>
-            <p>
-              一个个人维护的 Codex 下载镜像，为获取官方安装包多提供一种选择。
-            </p>
+            <p>一个独立的 Codex 下载镜像，为获取官方安装包多提供一种选择。</p>
           </div>
-          <a href="https://codex.shenxw.cn">
-            备用下载页
+          <a href={official} target="_blank" rel="noopener noreferrer">
+            官方安装指南
             <ArrowUpRight size={16} aria-hidden />
           </a>
         </section>
@@ -475,16 +486,10 @@ export default async function Home() {
         <div className="footer-brand">
           <Terminal size={18} aria-hidden />
           <span>Codex 下载站</span>
-          <span>/</span>
-          <span>由 shenxw 维护</span>
         </div>
         <p>
           独立镜像，与 OpenAI 无隶属关系。Codex 与 ChatGPT 商标归其所有者所有。
         </p>
-        <a href={source} target="_blank" rel="noreferrer">
-          GitHub
-          <ArrowUpRight size={12} aria-hidden />
-        </a>
       </footer>
     </>
   );

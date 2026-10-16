@@ -10,7 +10,9 @@ const compat = new FlatCompat({
 });
 
 const eslintConfig = [
+  { ignores: ['.next/**', '.mirror-work/**', '.artifacts/**', 'node_modules/**', 'next-env.d.ts'] },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
+  { rules: { '@next/next/no-html-link-for-pages': 'off' } },
 ];
 
 export default eslintConfig;

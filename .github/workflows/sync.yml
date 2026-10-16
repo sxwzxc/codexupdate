@@ -1,0 +1,78 @@
+name: Sync Codex MSIX mirror
+on:
+  schedule:
+    - cron: '17 1 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Run the full mirror sync or only test FTP and website mapping'
+        type: choice
+        options: [sync, preflight, force]
+        default: sync
+permissions:
+  contents: read
+concurrency:
+  group: codex-mirror-publisher
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env:
+      FTP_URL: ${{ secrets.FTP_URL }}
+      FTP_USER: ${{ secrets.FTP_USER }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      FTP_REMOTE_DIR: ${{ vars.FTP_REMOTE_DIR || '/' }}
+      MIRROR_BASE_URL: https://codex.shenxw.cn
+      SITE_BASE_URL: https://codex.sxwzxc.cn
+      SYNC_MODE: ${{ inputs.mode || 'sync' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Synchronize signed official package
+        shell: pwsh
+        run: |
+          if ($env:SYNC_MODE -eq 'preflight') { node scripts/sync.mjs --preflight }
+          elseif ($env:SYNC_MODE -eq 'force') { node scripts/sync.mjs --force }
+          else { node scripts/sync.mjs }
+          exit $LASTEXITCODE
+      - name: Keep published metadata for diagnosis
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mirror-metadata
+          path: .mirror-work/latest.json
+          if-no-files-found: ignore
+          retention-days: 7
+  maintenance:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: |
+            const branch = 'mirror-maintenance';
+            const repo = context.repo;
+            let previous;
+            try {
+              previous = (await github.rest.repos.getContent({...repo, path: 'mirror-heartbeat.json', ref: branch})).data;
+              const status = JSON.parse(Buffer.from(previous.content, 'base64').toString());
+              if (Date.now() - Date.parse(status.checkedAt) < 7 * 86400000) return;
+            } catch (e) { if (e.status !== 404) throw e; }
+            try { await github.rest.git.getRef({...repo, ref: `heads/${branch}`}); }
+            catch (e) {
+              if (e.status !== 404) throw e;
+              const main = await github.rest.git.getRef({...repo, ref: `heads/${context.payload.repository.default_branch}`});
+              await github.rest.git.createRef({...repo, ref: `refs/heads/${branch}`, sha: main.data.object.sha});
+            }
+            await github.rest.repos.createOrUpdateFileContents({...repo, branch,
+              path: 'mirror-heartbeat.json', sha: previous?.sha,
+              message: 'chore: record weekly mirror scheduler heartbeat',
+              content: Buffer.from(JSON.stringify({checkedAt: new Date().toISOString()}, null, 2)).toString('base64')});

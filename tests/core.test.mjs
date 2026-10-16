@@ -10,8 +10,46 @@ import {
   validateCatalog,
   validateLicense,
   fallbackPage,
+  packageFileName,
 } from "../scripts/core.mjs";
 const sha = "a".repeat(64);
+test("versioned package names are path-safe and correspond to published metadata", () => {
+  assert.equal(
+    packageFileName("26.1013.3656.0"),
+    "Codex-26.1013.3656.0-windows-x64.msix",
+  );
+  assert.throws(() => packageFileName("../escape"));
+  const fileName = packageFileName("26.1013.3656.0");
+  const url = `https://codex.shenxw.cn/releases/codex-windows-x64/release/${fileName}`;
+  const catalog = {
+    schemaVersion: 1,
+    checkedAt: new Date().toISOString(),
+    release: {
+      packageName: "OpenAI.Codex",
+      architecture: "x64",
+      version: "26.1013.3656.0",
+      fileName,
+      size: 100,
+      sha256: sha,
+      url,
+      license: { url },
+      checksumsUrl: url,
+    },
+  };
+  assert.equal(validateCatalog(catalog, "https://codex.shenxw.cn"), catalog);
+  assert.throws(() =>
+    validateCatalog(
+      {
+        ...catalog,
+        release: {
+          ...catalog.release,
+          fileName: "Codex-1.0.0.0-windows-x64.msix",
+        },
+      },
+      "https://codex.shenxw.cn",
+    ),
+  );
+});
 const base = "https://codex.shenxw.cn";
 const xml = (name = "OpenAI.Codex", arch = "x64") =>
   `<Package><Identity Name="${name}" Version="26.1007.9446.0" ProcessorArchitecture="${arch}" Publisher="CN=test"/><Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0"/></Dependencies></Package>`;

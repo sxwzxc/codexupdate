@@ -13,6 +13,8 @@ Windows x64 官方 MSIX 的独立镜像站。正式页面：https://codex.sxwzxc
 
 官方包名现在为 `ChatGPT-x64.msix`，MSIX Identity 为 `OpenAI.Codex`。不镜像 Codex CLI 或其他架构，不改动、重新签名或重新打包官方文件。
 
+镜像安装包使用 `Codex-<完整版本号>-windows-x64.msix` 文件名；SHA256SUMS 和网站安装命令使用相同文件名。官方直链的原始文件名保持不变。首次迁移会重新上传并验证带版本名的包，旧文件名保留 24 小时后清理，以兼容尚未刷新的下载入口。
+
 ## 本地开发
 
 需要 Node.js 22。执行 `npm ci`、`npm run dev`，浏览 http://localhost:3000 。页面默认读取真实镜像的公开元数据，没有镜像时显示准备中。

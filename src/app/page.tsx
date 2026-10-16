@@ -27,7 +27,6 @@ const officialDownloads = [
     url: "https://persistent.oaistatic.com/codex-app-prod/ChatGPT-License.xml",
   },
 ];
-const command = `# 将安装包和许可证放在同一文件夹\n# 以管理员身份打开 Windows PowerShell\nAdd-AppxProvisionedPackage -Online \`\n  -PackagePath .\\ChatGPT-x64.msix \`\n  -LicensePath .\\ChatGPT-License.xml \`\n  -Regions all`;
 const date = (v?: string | null) =>
   v
     ? new Intl.DateTimeFormat("zh-CN", {
@@ -55,6 +54,8 @@ function WindowsIcon() {
 export default async function Home() {
   const [catalog, status] = await Promise.all([getCatalog(), getSyncStatus()]);
   const r = catalog?.release;
+  const fileName = r?.fileName || "ChatGPT-x64.msix";
+  const command = `# 将安装包和许可证放在同一文件夹\n# 以管理员身份打开 Windows PowerShell\nAdd-AppxProvisionedPackage -Online \`\n  -PackagePath .\\${fileName} \`\n  -LicensePath .\\ChatGPT-License.xml \`\n  -Regions all`;
   const stale =
     !catalog || Date.now() - Date.parse(catalog.checkedAt) > 36 * 3600000;
   const failed =
@@ -265,10 +266,7 @@ export default async function Home() {
                   <span className="step-number">01</span>
                   <div>
                     <h3>下载两个文件</h3>
-                    <p>
-                      将 ChatGPT-x64.msix 和 ChatGPT-License.xml
-                      放入同一文件夹。
-                    </p>
+                    <p>将 {fileName} 和 ChatGPT-License.xml 放入同一文件夹。</p>
                   </div>
                 </li>
                 <li>
@@ -311,7 +309,8 @@ export default async function Home() {
                 <div className="details-body">
                   <p>
                     官方当前使用 ChatGPT-x64.msix 文件名，应用包标识为
-                    OpenAI.Codex。本镜像保持官方文件内容不变。
+                    OpenAI.Codex。镜像下载文件名包含版本号，文件内容及数字签名保持不变。使用官方直接下载时，请将命令中的安装包名称改为
+                    ChatGPT-x64.msix。
                   </p>
                   <p>
                     <code>-Online</code> 表示安装到当前运行的 Windows
@@ -335,7 +334,7 @@ export default async function Home() {
                       <p>
                         使用{" "}
                         <code>
-                          Get-FileHash .\ChatGPT-x64.msix -Algorithm SHA256
+                          {`Get-FileHash .\\${fileName} -Algorithm SHA256`}
                         </code>{" "}
                         核对完整性。
                       </p>

@@ -8,6 +8,7 @@ export type UpdateEntry = {
   blocks: { kind: string; text: string }[];
 };
 export type Release = {
+  fileName?: string;
   id: string;
   version: string;
   architecture: string;
@@ -80,6 +81,12 @@ export async function getCatalog(): Promise<Catalog | null> {
     )
       return null;
     [r.url, r.license.url, r.checksumsUrl].forEach(safeDownloadUrl);
+    if (
+      r.fileName &&
+      (r.fileName !== `Codex-${r.version}-windows-x64.msix` ||
+        new URL(r.url).pathname.split("/").at(-1) !== r.fileName)
+    )
+      return null;
     data.notes.entries = (data.notes?.entries || [])
       .filter((e) => {
         try {

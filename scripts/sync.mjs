@@ -13,6 +13,7 @@ import {
   readManifest,
   fileHash,
   contentId,
+  packageFileName,
   needsFullDownload,
   parseNotes,
   validateCatalog,
@@ -263,7 +264,12 @@ try {
   let release = previous?.release;
   let lastFullCheckAt = previous?.lastFullCheckAt;
   let source = previous?.source;
-  if (changed || licenseChanged) {
+  const filenameChanged =
+    previous?.release.fileName !==
+    (previous?.release.version
+      ? packageFileName(previous.release.version)
+      : null);
+  if (changed || licenseChanged || filenameChanged) {
     phase = "download";
     let file = path.join(work, "source.msix");
     const canReuse =
@@ -289,12 +295,17 @@ try {
         .trim() || null;
     lastFullCheckAt = new Date().toISOString();
     source = { etag, lastModified, url: PACKAGE_SOURCE };
-    if (previous?.release.sha256 === sha256 && !licenseChanged) {
+    if (
+      previous?.release.sha256 === sha256 &&
+      !licenseChanged &&
+      !filenameChanged
+    ) {
       log("Full recheck confirmed the same signed package");
     } else {
       const releaseId = contentId(info.version, sha256, licenseSha);
       const directory = `${NAMESPACE}/${releaseId}`;
-      const url = `${base}/${directory}/ChatGPT-x64.msix`;
+      const fileName = packageFileName(info.version);
+      const url = `${base}/${directory}/${fileName}`;
       phase = "upload";
       await retry("FTP upload", async () => {
         await connect();
@@ -309,18 +320,18 @@ try {
             lastProgress = Date.now();
           }
         });
-        await ftp.uploadFrom(file, `${directory}/ChatGPT-x64.msix.part`);
+        await ftp.uploadFrom(file, `${directory}/${fileName}.part`);
         ftp.trackProgress();
-        if ((await ftp.size(`${directory}/ChatGPT-x64.msix.part`)) !== size)
+        if ((await ftp.size(`${directory}/${fileName}.part`)) !== size)
           throw new Error("FTP upload length mismatch");
         await ftp.rename(
-          `${directory}/ChatGPT-x64.msix.part`,
-          `${directory}/ChatGPT-x64.msix`,
+          `${directory}/${fileName}.part`,
+          `${directory}/${fileName}`,
         );
         await put(`${directory}/ChatGPT-License.xml`, licenseBytes);
         await put(
           `${directory}/SHA256SUMS.txt`,
-          `${sha256}  ChatGPT-x64.msix\n${licenseSha}  ChatGPT-License.xml\n`,
+          `${sha256}  ${fileName}\n${licenseSha}  ChatGPT-License.xml\n`,
         );
         ftp.close();
       });
@@ -332,6 +343,7 @@ try {
       release = {
         ...info,
         id: releaseId,
+        fileName,
         size,
         sha256,
         url,
@@ -397,6 +409,20 @@ try {
     notes,
     history,
     retired,
+    legacyFiles: [
+      ...(previous?.legacyFiles || []),
+      ...(previous?.release &&
+      previous.release.fileName !== release.fileName &&
+      !previous.release.fileName
+        ? [
+            {
+              releaseId: previous.release.id,
+              name: "ChatGPT-x64.msix",
+              retiredAt: now,
+            },
+          ]
+        : []),
+    ],
   };
   validateCatalog(catalog, base);
   await writeFile(
@@ -418,6 +444,8 @@ try {
   for (const old of removable) {
     // Remove only names emitted by this publisher, never arbitrary remote trees.
     for (const name of [
+      packageFileName(old.id.split("-")[0]),
+      `${packageFileName(old.id.split("-")[0])}.part`,
       "ChatGPT-x64.msix",
       "ChatGPT-x64.msix.part",
       "ChatGPT-License.xml",
@@ -426,7 +454,18 @@ try {
       await ftp.remove(`${NAMESPACE}/${old.id}/${name}`, true);
     await ftp.removeEmptyDir(`${NAMESPACE}/${old.id}`).catch(() => {});
   }
-  if (removable.length) {
+  const expiredLegacyFiles = catalog.legacyFiles.filter(
+    (old) =>
+      /^\d+\.\d+\.\d+\.\d+-[a-f0-9]{12}-[a-f0-9]{8}$/.test(old.releaseId) &&
+      old.name === "ChatGPT-x64.msix" &&
+      Date.now() - Date.parse(old.retiredAt) >= 86400000,
+  );
+  for (const old of expiredLegacyFiles)
+    await ftp.remove(`${NAMESPACE}/${old.releaseId}/${old.name}`, true);
+  catalog.legacyFiles = catalog.legacyFiles.filter(
+    (old) => !expiredLegacyFiles.includes(old),
+  );
+  if (removable.length || expiredLegacyFiles.length) {
     catalog.retired = retired.filter(
       (r) => !removable.some((old) => old.id === r.id),
     );

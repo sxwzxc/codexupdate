@@ -187,15 +187,23 @@ export default async function Home() {
                     <Download size={21} aria-hidden /> 安装包准备中
                   </div>
                 )}
-                <a
-                  className="backup-download-button"
-                  href="http://codexdown.sxwzxc.cn/"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  备用下载
-                  <ArrowUpRight size={16} aria-hidden />
-                </a>
+                {r ? (
+                  <a
+                    className="backup-download-button"
+                    href="/download/windows-x64-backup"
+                  >
+                    备用下载
+                    <ArrowDownToLine size={16} aria-hidden />
+                  </a>
+                ) : (
+                  <div
+                    className="backup-download-button unavailable"
+                    aria-disabled="true"
+                  >
+                    备用下载
+                    <ArrowDownToLine size={16} aria-hidden />
+                  </div>
+                )}
               </div>
               <div className="download-secondary">
                 {r ? (

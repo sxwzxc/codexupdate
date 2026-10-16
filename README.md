@@ -7,6 +7,7 @@ Windows x64 官方 MSIX 的独立镜像站。正式页面：https://codex.sxwzxc
 - Next.js 15 + TypeScript：下载页、中文安装指南、原文更新日志、主题切换。
 - `GET /api/releases`：读取 FTP 网站公开的版本清单，只返回公开元数据。
 - `/download/windows-x64`、`/download/license`、`/download/checksums`：302 到镜像不可变文件地址，不代理大文件。页面和公开版本接口使用站内路径，不展示镜像域名或维护者署名。
+- `/download/windows-x64-backup`：校验当前安装包地址后，保留版本目录和文件名，将域名替换为 `http://codexdown.sxwzxc.cn`，直接下载相同版本的安装包。主、备用入口共用最新版本清单，自动随更新切换。
 - 下载区另外列出官方 MSIX 与许可证原始地址，可直接打开或复制，镜像暂不可用时仍可使用。
 - `scripts/sync.mjs`：Windows 上校验 MSIX 数字签名和包身份，上传 FTP，HTTPS 全量核对哈希，再切换清单。
 - GitHub Actions：每天 01:17 UTC（北京时间 09:17），以及手动触发。

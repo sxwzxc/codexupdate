@@ -1,11 +1,11 @@
 name: Sync Codex MSIX mirror
 on:
   schedule:
-    - cron: '17 1 * * *'
+    - cron: "17 1 * * *"
   workflow_dispatch:
     inputs:
       mode:
-        description: 'Run the full mirror sync or only test FTP and website mapping'
+        description: "Run the full mirror sync or only test FTP and website mapping"
         type: choice
         options: [sync, preflight, force]
         default: sync
@@ -19,9 +19,6 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 120
     env:
-      FTP_URL: ${{ secrets.FTP_URL }}
-      FTP_USER: ${{ secrets.FTP_USER }}
-      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
       FTP_REMOTE_DIR: ${{ vars.FTP_REMOTE_DIR || '/' }}
       MIRROR_BASE_URL: https://codex.shenxw.cn
       SITE_BASE_URL: https://codex.sxwzxc.cn
@@ -30,17 +27,26 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '22'
+          node-version: "22"
           cache: npm
       - run: npm ci
       - run: npm test
       - name: Synchronize signed official package
         shell: pwsh
+        env:
+          FTP_URL: ${{ secrets.FTP_URL }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
         run: |
           if ($env:SYNC_MODE -eq 'preflight') { node scripts/sync.mjs --preflight }
           elseif ($env:SYNC_MODE -eq 'force') { node scripts/sync.mjs --force }
           else { node scripts/sync.mjs }
           exit $LASTEXITCODE
+      - name: Check the public website
+        if: success() && inputs.mode != 'preflight'
+        continue-on-error: true
+        shell: pwsh
+        run: curl.exe --head --fail --max-time 20 --silent --show-error https://codex.sxwzxc.cn
       - name: Keep published metadata for diagnosis
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

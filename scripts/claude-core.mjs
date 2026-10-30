@@ -105,3 +105,70 @@ export function removableClaudeReleases(previous, currentId, now = Date.now()) {
       now - Date.parse(r.retiredAt) >= 86400000,
   );
 }
+
+export const CLAUDE_NOTES_SOURCE = "https://claude.com/docs/cowork/changelog.md";
+export const CLAUDE_NOTES_PAGE = "https://claude.com/docs/cowork/changelog";
+
+function plainMarkdown(line) {
+  return line
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Parses the official Claude Desktop changelog (Markdown) into the same entry
+// shape used for the Codex release notes.
+export function parseClaudeNotes(markdown) {
+  const entries = [];
+  let current = null;
+  const flush = () => {
+    if (
+      current?.date &&
+      current.version &&
+      current.blocks.length
+    )
+      entries.push({
+        id: `v${current.version.replaceAll(".", "-")}`,
+        date: current.date,
+        title: `Claude Desktop v${current.version}`,
+        version: current.version,
+        url: `${CLAUDE_NOTES_PAGE}#v${current.version.replaceAll(".", "-")}`,
+        blocks: current.blocks.slice(0, 40),
+      });
+  };
+  for (const raw of String(markdown).split(/\r?\n/)) {
+    const line = raw.trim();
+    const start = /^\*\*v(\d+(?:\.\d+){1,3})\*\*$/.exec(line);
+    if (start) {
+      flush();
+      current = { version: start[1], date: "", blocks: [] };
+      continue;
+    }
+    if (!current || !line) continue;
+    if (!current.date && /^\d{4}-\d{2}-\d{2}$/.test(line)) {
+      current.date = line;
+      continue;
+    }
+    if (/^#{1,6}\s/.test(line) || line.startsWith(">")) {
+      if (/^#{1,2}\s/.test(line)) {
+        flush();
+        current = null;
+      }
+      continue;
+    }
+    const bullet = /^[*-]\s+(.*)$/.exec(line);
+    const heading = /^\*\*([^*]+)\*\*$/.exec(line);
+    const text = plainMarkdown(bullet ? bullet[1] : heading ? heading[1] : line);
+    if (!text) continue;
+    current.blocks.push({
+      kind: bullet ? "bullet" : heading ? "heading" : "paragraph",
+      text: text.slice(0, 4000),
+    });
+  }
+  flush();
+  if (!entries.length)
+    throw new Error("No Claude release notes found; retaining previous notes");
+  return entries.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 20);
+}

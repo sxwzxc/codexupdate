@@ -18,6 +18,7 @@ import {
   parseClaudeManifest,
   validateClaudeCatalog,
   removableClaudeReleases,
+  parseClaudeNotes,
 } from "../scripts/claude-core.mjs";
 const sha = "a".repeat(64);
 test("Claude package names, identity and catalog URLs are validated", () => {
@@ -214,4 +215,14 @@ test("public download metadata cannot redirect to a foreign origin", () => {
   );
   assert(!html.includes("<script>"));
   assert(html.includes("&lt;script&gt;"));
+});
+test("Claude changelog markdown is parsed into dated entries", () => {
+  const md = `# Changelog\n\n> Release notes\n\n**v4.2.0**\n\n2026-10-29\n\nBundled Claude Code version: 2.1.3.\n\n**General**\n\n* Added \`thing\` for [users](https://x.y).\n* Fixed a bug.\n\n**v4.1.0**\n\n2026-10-20\n\n**Code**\n\n* Changed it.\n`;
+  const entries = parseClaudeNotes(md);
+  assert.equal(entries.length, 2);
+  assert.equal(entries[0].version, "4.2.0");
+  assert.equal(entries[0].date, "2026-10-29");
+  assert.deepEqual(entries[0].blocks[2], { kind: "bullet", text: "Added thing for users." });
+  assert.equal(entries[0].blocks[1].kind, "heading");
+  assert.throws(() => parseClaudeNotes("# nothing"));
 });

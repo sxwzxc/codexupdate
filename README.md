@@ -22,6 +22,7 @@ Windows x64 官方 MSIX 的独立镜像站。正式页面：https://codex.sxwzxc
 
 - 文件目录：`releases/claude-windows-x64/<version>-<hash12>/Claude-<version>-windows-x64.msix` 与 `SHA256SUMS.txt`。
 - 清单：`data/claude-latest.json`、`data/claude-status.json`，与 Codex 清单互不影响。
+- 更新日志：同步时从官方 https://claude.com/docs/cowork/changelog.md 解析最近 20 个版本写入 data/claude-latest.json 的 otes，失败时保留旧内容，不影响安装包发布。
 - 站内入口：`/download/claude-windows-x64`、`/download/claude-windows-x64-backup`、`/download/claude-checksums`；`/api/releases` 增加 `claude` 字段。
 - 安装：Claude 包无需许可证文件，使用 `Add-AppxProvisionedPackage -Online -PackagePath .\Claude-<版本>-windows-x64.msix -SkipLicense`。
 - 同步：GitHub Actions 在 Codex 同步之后运行（即使 Codex 失败也会执行）；本地使用 `node --env-file=.env scripts/sync-claude.mjs`，同样支持 `--preflight`、`--force`、`--reuse-download`。

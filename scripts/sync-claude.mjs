@@ -10,6 +10,8 @@ import {
   CLAUDE_NAMESPACE,
   CLAUDE_CATALOG,
   CLAUDE_STATUS,
+  CLAUDE_NOTES_SOURCE,
+  parseClaudeNotes,
   claudeFileName,
   claudeContentId,
   parseClaudeManifest,
@@ -286,12 +288,31 @@ try {
     { version: release.version, mirroredAt: release.mirroredAt, sha256: release.sha256 },
     ...(previous?.history || []).filter((r) => r.sha256 !== release.sha256),
   ].slice(0, 30);
-  const catalog = {
+  phase = "release-notes";
+  let notes = previous?.notes || {
+    sourceUrl: CLAUDE_NOTES_SOURCE,
+    fetchedAt: null,
+    entries: [],
+  };
+  let notesWarning = false;
+  try {
+    const text = await (await response(CLAUDE_NOTES_SOURCE)).text();
+    notes = {
+      sourceUrl: CLAUDE_NOTES_SOURCE,
+      fetchedAt: new Date().toISOString(),
+      entries: parseClaudeNotes(text),
+    };
+  } catch {
+    notesWarning = true;
+    log("Official Claude notes unavailable; preserving previous notes");
+  }
+  phase = "publish";  const catalog = {
     schemaVersion: 1,
     checkedAt: now,
     lastFullCheckAt,
     source,
     release,
+    notes,
     history,
     retired,
   };
@@ -303,6 +324,7 @@ try {
     attemptedAt: now,
     successfulAt: now,
     outcome: "success",
+    notesWarning,
   });
   phase = "cleanup";
   const removable = removableClaudeReleases(catalog, release.id);

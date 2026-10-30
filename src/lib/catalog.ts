@@ -111,6 +111,7 @@ export type ClaudeCatalog = {
   checkedAt: string;
   lastFullCheckAt: string;
   release: ClaudeRelease;
+  notes?: { sourceUrl: string; fetchedAt: string | null; entries: UpdateEntry[] };
   history: { version: string; mirroredAt: string; sha256: string }[];
 };
 export function safeClaudeUrl(address: string) {
@@ -151,6 +152,24 @@ export async function getClaudeCatalog(): Promise<ClaudeCatalog | null> {
     )
       return null;
     [r.url, r.checksumsUrl].forEach(safeClaudeUrl);
+    const entries = (data.notes?.entries || [])
+      .filter((e) => {
+        try {
+          return (
+            new URL(e.url).origin === "https://claude.com" &&
+            Array.isArray(e.blocks) &&
+            typeof e.title === "string"
+          );
+        } catch {
+          return false;
+        }
+      })
+      .slice(0, 20);
+    data.notes = {
+      sourceUrl: data.notes?.sourceUrl || "",
+      fetchedAt: data.notes?.fetchedAt ?? null,
+      entries,
+    };
     return data;
   } catch {
     return null;

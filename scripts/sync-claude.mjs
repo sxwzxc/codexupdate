@@ -71,7 +71,23 @@ async function response(url, init = {}) {
     throw new Error(`HTTP ${result.status} for ${new URL(url).pathname}`);
   return result;
 }
-async function retry(label, action) {
+// The official endpoint rejects HEAD (405), so fall back to a one-byte ranged GET
+// and rebuild content-length from the Content-Range total.
+async function sourceHead() {
+  try {
+    return await response(CLAUDE_PACKAGE_SOURCE, { method: "HEAD" });
+  } catch (error) {
+    log(`HEAD unavailable (${error.message}); using ranged GET`);
+  }
+  const result = await response(CLAUDE_PACKAGE_SOURCE, {
+    headers: { Range: "bytes=0-0" },
+  });
+  await result.body?.cancel();
+  const headers = new Headers(result.headers);
+  const total = /\/(\d+)$/.exec(result.headers.get("content-range") || "")?.[1];
+  if (total) headers.set("content-length", total);
+  return { headers };
+}async function retry(label, action) {
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       return await action();
@@ -172,7 +188,7 @@ try {
   const previous = previousRaw ? validateClaudeCatalog(previousRaw, base) : null;
   ftp.close();
   phase = "source-check";
-  const head = await response(CLAUDE_PACKAGE_SOURCE, { method: "HEAD" });
+  const head = await sourceHead();
   let changed = needsFullDownload(
     previous,
     head.headers,

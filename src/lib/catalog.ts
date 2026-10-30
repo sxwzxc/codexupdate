@@ -156,6 +156,82 @@ export async function getClaudeCatalog(): Promise<ClaudeCatalog | null> {
     return null;
   }
 }
+export async function diagnoseClaude() {
+  const checks: { name: string; ok: boolean; detail: string }[] = [];
+  const add = (name: string, ok: boolean, detail: string) =>
+    checks.push({ name, ok, detail });
+  add("MIRROR_BASE_URL", true, origin);
+  let data: ClaudeCatalog | null = null;
+  try {
+    const res = await fetch(`${origin}/data/claude-latest.json`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(8000),
+    });
+    const text = await res.text();
+    add(
+      "fetch claude-latest.json",
+      res.ok,
+      `HTTP ${res.status}, ${text.length} bytes, content-type=${res.headers.get("content-type")}${res.ok ? "" : "（同步尚未运行或清单未上传到该目录）"}`,
+    );
+    if (res.ok) {
+      try {
+        data = JSON.parse(text);
+        add("parse JSON", true, "ok");
+      } catch {
+        add("parse JSON", false, `不是 JSON，开头：${text.slice(0, 80)}`);
+      }
+    }
+  } catch (e) {
+    add("fetch claude-latest.json", false, String(e));
+  }
+  const r = data?.release;
+  if (r) {
+    add("schemaVersion", data!.schemaVersion === 1, String(data!.schemaVersion));
+    add("packageName", /claude/i.test(r.packageName || ""), String(r.packageName));
+    add("architecture", r.architecture === "x64", String(r.architecture));
+    add("version", /^\d+\.\d+\.\d+(\.\d+)?$/.test(r.version), String(r.version));
+    add("sha256", /^[a-f0-9]{64}$/.test(r.sha256), String(r.sha256));
+    add("size", Number.isSafeInteger(r.size) && r.size > 0, String(r.size));
+    add("signature", r.signature?.status === "Valid", JSON.stringify(r.signature));
+    add("fileName", r.fileName === `Claude-${r.version}-windows-x64.msix`, String(r.fileName));
+    for (const [k, v] of [["url", r.url], ["checksumsUrl", r.checksumsUrl]] as const) {
+      try {
+        safeClaudeUrl(v);
+        add(k, true, v);
+      } catch {
+        add(k, false, `被拒绝：${v}`);
+      }
+    }
+    try {
+      const head = await fetch(r.url, {
+        headers: { Range: "bytes=0-1023" },
+        cache: "no-store",
+        signal: AbortSignal.timeout(8000),
+      });
+      await head.body?.cancel();
+      add(
+        "mirror Range",
+        head.status === 206,
+        `HTTP ${head.status}, content-range=${head.headers.get("content-range")}, type=${head.headers.get("content-type")}`,
+      );
+    } catch (e) {
+      add("mirror Range", false, String(e));
+    }
+  }
+  for (const f of ["claude-status.json", "latest.json"]) {
+    try {
+      const res = await fetch(`${origin}/data/${f}`, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(5000),
+      });
+      const t = await res.text();
+      add(`data/${f}`, res.ok, res.ok ? t.slice(0, 300) : `HTTP ${res.status}`);
+    } catch (e) {
+      add(`data/${f}`, false, String(e));
+    }
+  }
+  return { ok: checks.every((c) => c.ok), checks };
+}
 export async function getClaudeSyncStatus(): Promise<SyncStatus | null> {
   try {
     const r = await fetch(`${origin}/data/claude-status.json`, {

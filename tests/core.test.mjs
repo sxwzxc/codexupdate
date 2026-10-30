@@ -12,7 +12,52 @@ import {
   fallbackPage,
   packageFileName,
 } from "../scripts/core.mjs";
+import {
+  claudeFileName,
+  claudeContentId,
+  parseClaudeManifest,
+  validateClaudeCatalog,
+  removableClaudeReleases,
+} from "../scripts/claude-core.mjs";
 const sha = "a".repeat(64);
+test("Claude package names, identity and catalog URLs are validated", () => {
+  assert.equal(claudeFileName("1.2.3.4"), "Claude-1.2.3.4-windows-x64.msix");
+  assert.throws(() => claudeFileName("../x"));
+  const manifest = (name = "Claude", arch = "x64") =>
+    `<Package><Identity Name="${name}" Version="1.2.3.4" ProcessorArchitecture="${arch}" Publisher="CN=t"/><Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0"/></Dependencies></Package>`;
+  assert.equal(parseClaudeManifest(manifest()).version, "1.2.3.4");
+  assert.throws(() => parseClaudeManifest(manifest("Other.App")));
+  assert.throws(() => parseClaudeManifest(manifest("Claude", "arm64")));
+  const fileName = claudeFileName("1.2.3.4");
+  const url = `https://codex.shenxw.cn/releases/claude-windows-x64/${claudeContentId("1.2.3.4", sha)}/${fileName}`;
+  const catalog = {
+    schemaVersion: 1,
+    checkedAt: new Date().toISOString(),
+    release: {
+      packageName: "Claude",
+      architecture: "x64",
+      version: "1.2.3.4",
+      fileName,
+      size: 100,
+      sha256: sha,
+      url,
+      checksumsUrl: url,
+    },
+  };
+  assert.equal(validateClaudeCatalog(catalog, "https://codex.shenxw.cn"), catalog);
+  assert.throws(() =>
+    validateClaudeCatalog(
+      { ...catalog, release: { ...catalog.release, url: "https://evil.example/a.msix" } },
+      "https://codex.shenxw.cn",
+    ),
+  );
+  const id = claudeContentId("1.2.3.4", sha);
+  const old = new Date(Date.now() - 25 * 3600000).toISOString();
+  assert.equal(
+    removableClaudeReleases({ retired: [{ id, retiredAt: old }, { id: "../x", retiredAt: old }] }, "other").length,
+    1,
+  );
+});
 test("versioned package names are path-safe and correspond to published metadata", () => {
   assert.equal(
     packageFileName("26.1013.3656.0"),

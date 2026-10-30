@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "test": "node --test tests/*.test.mjs",
     "sync": "node scripts/sync.mjs",
+    "sync:claude": "node scripts/sync-claude.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

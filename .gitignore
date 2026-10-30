@@ -2,6 +2,7 @@
 .env*
 !.env.example
 .mirror-work/
+.mirror-work-claude/
 .artifacts/
 .edgeone/*
 .tef_dist/*

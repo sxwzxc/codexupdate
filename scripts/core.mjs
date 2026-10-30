@@ -99,7 +99,7 @@ export function parsePackageManifest(xml) {
   };
 }
 
-export function readManifest(file) {
+export function readManifest(file, parse = parsePackageManifest) {
   return new Promise((resolve, reject) => {
     yauzl.open(file, { lazyEntries: true }, (error, zip) => {
       if (error) return reject(error);
@@ -123,9 +123,7 @@ export function readManifest(file) {
           stream.on("end", () => {
             zip.close();
             try {
-              resolve(
-                parsePackageManifest(Buffer.concat(chunks).toString("utf8")),
-              );
+              resolve(parse(Buffer.concat(chunks).toString("utf8")));
             } catch (e) {
               reject(e);
             }

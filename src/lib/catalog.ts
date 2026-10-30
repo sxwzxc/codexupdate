@@ -105,6 +105,70 @@ export async function getCatalog(): Promise<Catalog | null> {
     return null;
   }
 }
+export type ClaudeRelease = Omit<Release, "license"> & { fileName: string };
+export type ClaudeCatalog = {
+  schemaVersion: 1;
+  checkedAt: string;
+  lastFullCheckAt: string;
+  release: ClaudeRelease;
+  history: { version: string; mirroredAt: string; sha256: string }[];
+};
+export function safeClaudeUrl(address: string) {
+  const url = new URL(address);
+  if (
+    url.protocol !== "https:" ||
+    url.origin !== new URL(origin).origin ||
+    !/^\/releases\/claude-windows-x64\/[\w.-]+\/[\w.-]+$/.test(url.pathname) ||
+    url.search ||
+    url.hash
+  )
+    throw new Error("Invalid mirror URL");
+  return url.href;
+}
+export async function getClaudeCatalog(): Promise<ClaudeCatalog | null> {
+  try {
+    const response = await fetch(`${origin}/data/claude-latest.json`, {
+      next: { revalidate: 300 },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) return null;
+    const raw = await response.text();
+    if (raw.length > 1024 * 1024) return null;
+    const data = JSON.parse(raw) as ClaudeCatalog;
+    const r = data.release;
+    if (
+      data.schemaVersion !== 1 ||
+      !/claude/i.test(r?.packageName || "") ||
+      r.architecture !== "x64" ||
+      !/^\d+\.\d+\.\d+(\.\d+)?$/.test(r.version) ||
+      !/^[a-f0-9]{64}$/.test(r.sha256) ||
+      !Number.isSafeInteger(r.size) ||
+      r.size <= 0 ||
+      r.signature?.status !== "Valid" ||
+      !Number.isFinite(Date.parse(data.checkedAt)) ||
+      r.fileName !== `Claude-${r.version}-windows-x64.msix` ||
+      new URL(r.url).pathname.split("/").at(-1) !== r.fileName
+    )
+      return null;
+    [r.url, r.checksumsUrl].forEach(safeClaudeUrl);
+    return data;
+  } catch {
+    return null;
+  }
+}
+export async function getClaudeSyncStatus(): Promise<SyncStatus | null> {
+  try {
+    const r = await fetch(`${origin}/data/claude-status.json`, {
+      next: { revalidate: 60 },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!r.ok) return null;
+    const text = await r.text();
+    return text.length < 4096 ? JSON.parse(text) : null;
+  } catch {
+    return null;
+  }
+}
 export async function getSyncStatus(): Promise<SyncStatus | null> {
   try {
     const r = await fetch(`${origin}/data/status.json`, {

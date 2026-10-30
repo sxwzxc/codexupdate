@@ -42,6 +42,18 @@ jobs:
           elseif ($env:SYNC_MODE -eq 'force') { node scripts/sync.mjs --force }
           else { node scripts/sync.mjs }
           exit $LASTEXITCODE
+      - name: Synchronize signed Claude package
+        if: always()
+        shell: pwsh
+        env:
+          FTP_URL: ${{ secrets.FTP_URL }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          if ($env:SYNC_MODE -eq 'preflight') { node scripts/sync-claude.mjs --preflight }
+          elseif ($env:SYNC_MODE -eq 'force') { node scripts/sync-claude.mjs --force }
+          else { node scripts/sync-claude.mjs }
+          exit $LASTEXITCODE
       - name: Check the public website
         if: success() && inputs.mode != 'preflight'
         continue-on-error: true
@@ -52,7 +64,9 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: mirror-metadata
-          path: .mirror-work/latest.json
+          path: |
+            .mirror-work/latest.json
+            .mirror-work-claude/latest.json
           if-no-files-found: ignore
           retention-days: 7
   maintenance:

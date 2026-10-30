@@ -16,6 +16,17 @@ Windows x64 官方 MSIX 的独立镜像站。正式页面：https://codex.sxwzxc
 
 镜像安装包使用 `Codex-<完整版本号>-windows-x64.msix` 文件名；SHA256SUMS 和网站安装命令使用相同文件名。官方直链的原始文件名保持不变。首次迁移会重新上传并验证带版本名的包，旧文件名保留 24 小时后清理，以兼容尚未刷新的下载入口。
 
+## Claude 桌面端镜像
+
+同一页面（`#claude` 卡片）同时提供 Claude for Windows x64 的 MSIX 离线包，项目名保持不变。流程与 Codex 一致，由 `scripts/sync-claude.mjs` 和 `scripts/claude-core.mjs` 实现：从官方 `https://claude.ai/api/desktop/win32/x64/msix/latest/redirect` 下载，校验 MSIX 身份（包名含 Claude、x64）和 Authenticode 签名，上传 FTP，HTTPS 全量 SHA-256 与 Range 校验后切换清单。
+
+- 文件目录：`releases/claude-windows-x64/<version>-<hash12>/Claude-<version>-windows-x64.msix` 与 `SHA256SUMS.txt`。
+- 清单：`data/claude-latest.json`、`data/claude-status.json`，与 Codex 清单互不影响。
+- 站内入口：`/download/claude-windows-x64`、`/download/claude-windows-x64-backup`、`/download/claude-checksums`；`/api/releases` 增加 `claude` 字段。
+- 安装：Claude 包无需许可证文件，使用 `Add-AppxProvisionedPackage -Online -PackagePath .\Claude-<版本>-windows-x64.msix -SkipLicense`。
+- 同步：GitHub Actions 在 Codex 同步之后运行（即使 Codex 失败也会执行）；本地使用 `node --env-file=.env scripts/sync-claude.mjs`，同样支持 `--preflight`、`--force`、`--reuse-download`。
+- 官方下载地址与文件名以 Anthropic 部署文档为准；若变更，修改 `scripts/claude-core.mjs` 中的 `CLAUDE_PACKAGE_SOURCE`。
+
 ## 本地开发
 
 需要 Node.js 22。执行 `npm ci`、`npm run dev`，浏览 http://localhost:3000 。页面默认读取真实镜像的公开元数据，没有镜像时显示准备中。

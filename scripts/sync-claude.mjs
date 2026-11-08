@@ -4,7 +4,7 @@ import { Readable, Writable } from "node:stream";
 import { createHash, randomUUID } from "node:crypto";
 import { spawnSync, spawn } from "node:child_process";
 import path from "node:path";
-import { ftpOptions, readManifest, fileHash, needsFullDownload } from "./core.mjs";
+import { ftpOptions, readManifest, fileHash, needsFullDownload, removePublishedRelease } from "./core.mjs";
 import {
   CLAUDE_PACKAGE_SOURCE,
   CLAUDE_NAMESPACE,
@@ -330,9 +330,11 @@ try {
   const removable = removableClaudeReleases(catalog, release.id);
   for (const old of removable) {
     const name = claudeFileName(old.id.split("-")[0]);
-    for (const n of [name, `${name}.part`, "SHA256SUMS.txt"])
-      await ftp.remove(`${CLAUDE_NAMESPACE}/${old.id}/${n}`, true);
-    await ftp.removeEmptyDir(`${CLAUDE_NAMESPACE}/${old.id}`).catch(() => {});
+    log(`Removing retired release: ${old.id} (retired ${old.retiredAt})`);
+    await removePublishedRelease(ftp, CLAUDE_NAMESPACE, old.id, [
+      name, `${name}.part`, "SHA256SUMS.txt",
+    ]);
+    log(`Verified retired release removed: ${old.id}`);
   }
   if (removable.length) {
     catalog.retired = retired.filter((r) => !removable.some((o) => o.id === r.id));

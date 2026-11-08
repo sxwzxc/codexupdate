@@ -19,6 +19,8 @@ import {
   validateCatalog,
   validateLicense,
   removableReleases,
+  removePublishedRelease,
+  removePublishedFile,
   fallbackPage,
 } from "./core.mjs";
 
@@ -443,16 +445,16 @@ try {
   const removable = removableReleases(catalog, release.id);
   for (const old of removable) {
     // Remove only names emitted by this publisher, never arbitrary remote trees.
-    for (const name of [
+    log(`Removing retired release: ${old.id} (retired ${old.retiredAt})`);
+    await removePublishedRelease(ftp, NAMESPACE, old.id, [
       packageFileName(old.id.split("-")[0]),
       `${packageFileName(old.id.split("-")[0])}.part`,
       "ChatGPT-x64.msix",
       "ChatGPT-x64.msix.part",
       "ChatGPT-License.xml",
       "SHA256SUMS.txt",
-    ])
-      await ftp.remove(`${NAMESPACE}/${old.id}/${name}`, true);
-    await ftp.removeEmptyDir(`${NAMESPACE}/${old.id}`).catch(() => {});
+    ]);
+    log(`Verified retired release removed: ${old.id}`);
   }
   const expiredLegacyFiles = catalog.legacyFiles.filter(
     (old) =>
@@ -460,8 +462,11 @@ try {
       old.name === "ChatGPT-x64.msix" &&
       Date.now() - Date.parse(old.retiredAt) >= 86400000,
   );
-  for (const old of expiredLegacyFiles)
-    await ftp.remove(`${NAMESPACE}/${old.releaseId}/${old.name}`, true);
+  for (const old of expiredLegacyFiles) {
+    // A retired directory may already have been removed above or manually.
+    if ((await ftp.list(NAMESPACE)).some((entry) => entry.name === old.releaseId))
+      await removePublishedFile(ftp, `${NAMESPACE}/${old.releaseId}`, old.name);
+  }
   catalog.legacyFiles = catalog.legacyFiles.filter(
     (old) => !expiredLegacyFiles.includes(old),
   );

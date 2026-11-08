@@ -272,6 +272,45 @@ export function removableReleases(previous, currentId, now = Date.now()) {
   );
 }
 
+// LIST distinguishes an absent file from a permission-denied DELE (both may
+// return 550). Never suppress deletion errors or forget an unverified cleanup.
+export async function removePublishedFile(ftp, directory, name) {
+  if (!/^[\w./-]+$/.test(directory) || directory.split("/").includes("..") ||
+      !/^[\w.-]+$/.test(name) || name === "." || name === "..")
+    throw new Error("Unsafe cleanup path");
+  const entries = await ftp.list(directory);
+  const entry = entries.find((item) => item.name === name);
+  if (!entry) return;
+  if (!entry.isFile) throw new Error(`Unexpected cleanup entry: ${directory}/${name}`);
+  await ftp.remove(`${directory}/${name}`);
+  if ((await ftp.list(directory)).some((item) => item.name === name))
+    throw new Error(`Cleanup verification failed: ${directory}/${name}`);
+}
+
+export async function removePublishedRelease(ftp, namespace, releaseId, names) {
+  const validId = namespace === NAMESPACE
+    ? /^\d+\.\d+\.\d+\.\d+-[a-f0-9]{12}-[a-f0-9]{8}$/
+    : namespace === "releases/claude-windows-x64"
+      ? /^\d+\.\d+\.\d+(\.\d+)?-[a-f0-9]{12}$/
+      : null;
+  if (!validId?.test(releaseId) || names.some((name) =>
+    !/^[\w.-]+$/.test(name) || name === "." || name === ".."))
+    throw new Error("Unsafe release cleanup path");
+  const directory = `${namespace}/${releaseId}`;
+  const entry = (await ftp.list(namespace)).find((item) => item.name === releaseId);
+  if (!entry) return; // Already manually deleted, or removed by a prior attempt.
+  if (!entry.isDirectory) throw new Error(`Unexpected cleanup entry: ${directory}`);
+  const entries = await ftp.list(directory);
+  if (entries.some((item) => !item.isFile || !names.includes(item.name)))
+    throw new Error(`Unrecognized files in retired release: ${directory}`);
+  for (const item of entries) await ftp.remove(`${directory}/${item.name}`);
+  if ((await ftp.list(directory)).length)
+    throw new Error(`Cleanup verification failed: ${directory}`);
+  await ftp.removeEmptyDir(directory);
+  if ((await ftp.list(namespace)).some((item) => item.name === releaseId))
+    throw new Error(`Cleanup verification failed: ${directory}`);
+}
+
 export function escapeHtml(value) {
   return String(value).replace(
     /[&<>"']/g,

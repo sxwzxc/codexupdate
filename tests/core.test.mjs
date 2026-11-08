@@ -7,6 +7,8 @@ import {
   needsFullDownload,
   parseNotes,
   removableReleases,
+  removePublishedRelease,
+  removePublishedFile,
   validateCatalog,
   validateLicense,
   fallbackPage,
@@ -177,6 +179,72 @@ test("cleanup respects 24-hour grace and refuses outside paths or current releas
     0,
   );
 });
+function cleanupFtp(namespace, id, names, failure) {
+  let present = true;
+  let files = [...names];
+  const calls = [];
+  return {
+    calls,
+    async list(directory) {
+      if (directory === namespace)
+        return present ? [{ name: id, isDirectory: true }] : [];
+      return files.map((name) => ({ name, isFile: true }));
+    },
+    async remove(file, ignoreErrors) {
+      calls.push(["remove", file, ignoreErrors]);
+      assert.equal(ignoreErrors, undefined);
+      if (failure === "delete") throw Object.assign(new Error("Permission denied"), { code: 550 });
+      if (failure !== "silent") files = files.filter((name) => file !== `${namespace}/${id}/${name}`);
+    },
+    async removeEmptyDir(directory) {
+      calls.push(["rmdir", directory]);
+      if (failure === "rmdir") throw Object.assign(new Error("Permission denied"), { code: 550 });
+      present = false;
+    },
+  };
+}
+
+test("FTP cleanup verifies deletion for Codex and Claude and tolerates manual removal", async () => {
+  for (const [namespace, id, name] of [
+    ["releases/codex-windows-x64", contentId("1.2.3.4", sha, sha), packageFileName("1.2.3.4")],
+    ["releases/claude-windows-x64", claudeContentId("1.2.3", sha), claudeFileName("1.2.3")],
+  ]) {
+    const ftp = cleanupFtp(namespace, id, [name, "SHA256SUMS.txt"]);
+    await removePublishedRelease(ftp, namespace, id, [name, "SHA256SUMS.txt"]);
+    assert.equal(ftp.calls.length, 3);
+    await removePublishedRelease(ftp, namespace, id, [name, "SHA256SUMS.txt"]);
+    assert.equal(ftp.calls.length, 3);
+  }
+});
+
+test("FTP deletion errors and failed verification must not be treated as cleanup success", async () => {
+  const namespace = "releases/codex-windows-x64";
+  const id = contentId("1.2.3.4", sha, sha);
+  const name = packageFileName("1.2.3.4");
+  for (const failure of ["delete", "silent", "rmdir"]) {
+    const ftp = cleanupFtp(namespace, id, [name], failure);
+    await assert.rejects(removePublishedRelease(ftp, namespace, id, [name]));
+  }
+  const unknown = cleanupFtp(namespace, id, [name, "unrelated.txt"]);
+  await assert.rejects(removePublishedRelease(unknown, namespace, id, [name]), /Unrecognized/);
+  assert.equal(unknown.calls.length, 0);
+  await assert.rejects(removePublishedRelease(unknown, namespace, "../escape", [name]), /Unsafe/);
+  const unavailable = { async list() { throw new Error("LIST denied"); } };
+  await assert.rejects(removePublishedRelease(unavailable, namespace, id, [name]), /LIST denied/);
+});
+
+test("legacy file cleanup tolerates missing files but propagates FTP 550 permission errors", async () => {
+  const namespace = "releases/codex-windows-x64";
+  const id = contentId("1.2.3.4", sha, sha);
+  const name = "ChatGPT-x64.msix";
+  const ftp = cleanupFtp(namespace, id, [name]);
+  await removePublishedFile(ftp, `${namespace}/${id}`, name);
+  await removePublishedFile(ftp, `${namespace}/${id}`, name);
+  assert.equal(ftp.calls.length, 1);
+  const denied = cleanupFtp(namespace, id, [name], "delete");
+  await assert.rejects(removePublishedFile(denied, `${namespace}/${id}`, name), /Permission denied/);
+});
+
 test("public download metadata cannot redirect to a foreign origin", () => {
   const url = `${base}/releases/codex-windows-x64/valid/ChatGPT-x64.msix`;
   const catalog = {

@@ -33,7 +33,7 @@ export async function GET(
       asset === "claude-checksums" ? claude.release.checksumsUrl : claude.release.url,
     );
   } else {
-    const catalog = await getCatalog();
+    const catalog = await getCatalog({ fresh: true });
     if (!catalog) return unavailable();
     mirrorUrl = safeDownloadUrl(
       asset === "license"

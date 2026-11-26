@@ -11,6 +11,8 @@ export const LICENSE_SOURCE =
 export const NOTES_SOURCE =
   "https://learn.chatgpt.com/docs/changelog?type=codex-app";
 export const NAMESPACE = "releases/codex-windows-x64";
+const CODEX_RELEASE_ID = /^\d+\.\d+\.\d+\.\d+-[a-f0-9]{12}-[a-f0-9]{8}$/;
+const CODEX_CLEANUP_GRACE_MS = 10 * 60_000;
 
 export function packageFileName(version) {
   if (!/^\d+\.\d+\.\d+\.\d+$/.test(version))
@@ -263,13 +265,25 @@ export function validateCatalog(value, mirrorBase) {
   return value;
 }
 
-export function removableReleases(previous, currentId, now = Date.now()) {
-  return (previous?.retired || []).filter(
-    (r) =>
-      r.id !== currentId &&
-      /^\d+\.\d+\.\d+\.\d+-[a-f0-9]{12}-[a-f0-9]{8}$/.test(r.id) &&
-      now - Date.parse(r.retiredAt) >= 86400000,
+export function planCodexCleanup(catalog, now = Date.now()) {
+  const current = catalog.release;
+  const isRetired = (entry) => Date.parse(entry?.retiredAt) <= now;
+  const releases = (catalog.retired || []).filter(
+    (r) => isRetired(r) && CODEX_RELEASE_ID.test(r.id) && r.id !== current.id,
   );
+  const legacyFiles = (catalog.legacyFiles || []).filter(
+    (r) =>
+      isRetired(r) &&
+      CODEX_RELEASE_ID.test(r.releaseId) &&
+      r.name === "ChatGPT-x64.msix" &&
+      (r.releaseId !== current.id || (current.fileName && current.fileName !== r.name)),
+  );
+  const waitMs = [...releases, ...legacyFiles].reduce(
+    (wait, entry) =>
+      Math.max(wait, Date.parse(entry.retiredAt) + CODEX_CLEANUP_GRACE_MS - now),
+    0,
+  );
+  return { releases, legacyFiles, waitMs };
 }
 
 // LIST distinguishes an absent file from a permission-denied DELE (both may
@@ -289,7 +303,7 @@ export async function removePublishedFile(ftp, directory, name) {
 
 export async function removePublishedRelease(ftp, namespace, releaseId, names) {
   const validId = namespace === NAMESPACE
-    ? /^\d+\.\d+\.\d+\.\d+-[a-f0-9]{12}-[a-f0-9]{8}$/
+    ? CODEX_RELEASE_ID
     : namespace === "releases/claude-windows-x64"
       ? /^\d+\.\d+\.\d+(\.\d+)?-[a-f0-9]{12}$/
       : null;

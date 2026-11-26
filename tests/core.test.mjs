@@ -6,7 +6,7 @@ import {
   contentId,
   needsFullDownload,
   parseNotes,
-  removableReleases,
+  planCodexCleanup,
   removePublishedRelease,
   removePublishedFile,
   validateCatalog,
@@ -160,24 +160,48 @@ test("desktop notes discard CLI entries and executable content", () => {
   assert(!JSON.stringify(notes).includes("alert"));
   assert.throws(() => parseNotes("<p>layout changed</p>"));
 });
-test("cleanup respects 24-hour grace and refuses outside paths or current release", () => {
-  const id = contentId("26.1007.9446.0", sha, sha);
-  const old = new Date(Date.now() - 25 * 3600000).toISOString();
-  const previous = {
+test("Codex can remove the previous release in the same run after the cache grace", async () => {
+  const now = Date.parse("2026-11-25T09:56:44Z");
+  const retiredAt = new Date(now).toISOString();
+  const version = "26.1007.9446.0";
+  const id = contentId(version, sha, sha);
+  const currentId = contentId("26.1013.3656.0", sha, sha);
+  const catalog = {
+    release: { id: currentId },
     retired: [
-      { id, retiredAt: old },
-      { id: "../unrelated", retiredAt: old },
+      { id, retiredAt },
+      { id: currentId, retiredAt },
+      { id: "../unrelated", retiredAt },
+      { id: contentId("1.2.3.4", sha, sha), retiredAt: "invalid" },
+      { id: contentId("1.2.3.5", sha, sha), retiredAt: new Date(now + 86400000).toISOString() },
     ],
   };
-  assert.equal(removableReleases(previous, "different").length, 1);
-  assert.equal(removableReleases(previous, id).length, 0);
-  assert.equal(
-    removableReleases(
-      { retired: [{ id, retiredAt: new Date().toISOString() }] },
-      "different",
-    ).length,
-    0,
-  );
+  const grace = 10 * 60_000;
+  const plan = planCodexCleanup(catalog, now);
+  assert.deepEqual(plan, { releases: [{ id, retiredAt }], legacyFiles: [], waitMs: grace });
+  assert.equal(planCodexCleanup(catalog, now + grace - 1).waitMs, 1);
+  assert.deepEqual(planCodexCleanup(catalog, now + grace), { ...plan, waitMs: 0 });
+  assert.deepEqual(planCodexCleanup(catalog, now + 86400000 - 1), { ...plan, waitMs: 0 });
+  const namespace = "releases/codex-windows-x64";
+  const name = packageFileName(version);
+  const ftp = cleanupFtp(namespace, id, [name]);
+  for (const old of plan.releases)
+    await removePublishedRelease(ftp, namespace, old.id, [name]);
+  assert.deepEqual(await ftp.list(namespace), []);
+});
+
+test("Codex legacy filename cleanup never selects the active installer", () => {
+  const now = Date.parse("2026-11-25T09:56:44Z");
+  const id = contentId("26.1007.9446.0", sha, sha);
+  const legacy = { releaseId: id, name: "ChatGPT-x64.msix", retiredAt: new Date(now).toISOString() };
+  const catalog = { release: { id }, legacyFiles: [legacy] };
+  assert.deepEqual(planCodexCleanup(catalog, now), { releases: [], legacyFiles: [], waitMs: 0 });
+  catalog.release.fileName = packageFileName("26.1007.9446.0");
+  assert.deepEqual(planCodexCleanup(catalog, now), {
+    releases: [],
+    legacyFiles: [legacy],
+    waitMs: 10 * 60_000,
+  });
 });
 function cleanupFtp(namespace, id, names, failure) {
   let present = true;

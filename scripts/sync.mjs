@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile, stat } from "node:fs/promises";
 import { Readable, Writable } from "node:stream";
 import { createHash, randomUUID } from "node:crypto";
 import { spawnSync, spawn } from "node:child_process";
+import { setTimeout as sleep } from "node:timers/promises";
 import path from "node:path";
 import {
   PACKAGE_SOURCE,
@@ -18,7 +19,7 @@ import {
   parseNotes,
   validateCatalog,
   validateLicense,
-  removableReleases,
+  planCodexCleanup,
   removePublishedRelease,
   removePublishedFile,
   fallbackPage,
@@ -435,15 +436,18 @@ try {
   await atomicJson("data/latest.json", catalog);
   await put(`index.html.${id}.tmp`, fallbackPage(catalog, site));
   await ftp.rename(`index.html.${id}.tmp`, "index.html");
-  await atomicJson("data/status.json", {
-    attemptedAt: now,
-    successfulAt: now,
-    outcome: "success",
-    notesWarning,
-  });
   phase = "cleanup";
-  const removable = removableReleases(catalog, release.id);
-  for (const old of removable) {
+  const cleanup = planCodexCleanup(catalog);
+  if (cleanup.waitMs > 0) {
+    log(`Waiting ${Math.ceil(cleanup.waitMs / 1000)}s for cached download links before FTP cleanup`);
+    ftp.close();
+    await sleep(cleanup.waitMs);
+    await connect();
+    const published = await readRemoteJson("data/latest.json");
+    if (published?.checkedAt !== catalog.checkedAt || published.release?.id !== release.id)
+      throw new Error("Published catalog changed while waiting; skipped FTP cleanup");
+  }
+  for (const old of cleanup.releases) {
     // Remove only names emitted by this publisher, never arbitrary remote trees.
     log(`Removing retired release: ${old.id} (retired ${old.retiredAt})`);
     await removePublishedRelease(ftp, NAMESPACE, old.id, [
@@ -456,26 +460,31 @@ try {
     ]);
     log(`Verified retired release removed: ${old.id}`);
   }
-  const expiredLegacyFiles = catalog.legacyFiles.filter(
-    (old) =>
-      /^\d+\.\d+\.\d+\.\d+-[a-f0-9]{12}-[a-f0-9]{8}$/.test(old.releaseId) &&
-      old.name === "ChatGPT-x64.msix" &&
-      Date.now() - Date.parse(old.retiredAt) >= 86400000,
-  );
-  for (const old of expiredLegacyFiles) {
+  for (const old of cleanup.legacyFiles) {
     // A retired directory may already have been removed above or manually.
     if ((await ftp.list(NAMESPACE)).some((entry) => entry.name === old.releaseId))
       await removePublishedFile(ftp, `${NAMESPACE}/${old.releaseId}`, old.name);
   }
-  catalog.legacyFiles = catalog.legacyFiles.filter(
-    (old) => !expiredLegacyFiles.includes(old),
-  );
-  if (removable.length || expiredLegacyFiles.length) {
-    catalog.retired = retired.filter(
-      (r) => !removable.some((old) => old.id === r.id),
+  if (cleanup.releases.length || cleanup.legacyFiles.length) {
+    catalog.retired = catalog.retired.filter(
+      (old) => !cleanup.releases.includes(old),
+    );
+    catalog.legacyFiles = catalog.legacyFiles.filter(
+      (old) => !cleanup.legacyFiles.includes(old),
     );
     await atomicJson("data/latest.json", catalog);
+    await writeFile(
+      path.join(work, "latest.json"),
+      JSON.stringify(catalog, null, 2),
+    );
   }
+  phase = "status";
+  await atomicJson("data/status.json", {
+    attemptedAt: now,
+    successfulAt: new Date().toISOString(),
+    outcome: "success",
+    notesWarning,
+  });
   log(`Mirror published successfully: ${base} · ${release.version}`);
 } catch (error) {
   const safeMessage = String(error.message)

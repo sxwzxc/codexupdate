@@ -57,10 +57,10 @@ export function safeDownloadUrl(address: string) {
     throw new Error("Invalid mirror URL");
   return url.href;
 }
-export async function getCatalog(): Promise<Catalog | null> {
+export async function getCatalog({ fresh = false } = {}): Promise<Catalog | null> {
   try {
     const response = await fetch(`${origin}/data/latest.json`, {
-      next: { revalidate: 300 },
+      ...(fresh ? { cache: "no-store" } : { next: { revalidate: 300 } }),
       signal: AbortSignal.timeout(8000),
     });
     if (!response.ok) return null;
